@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #define DB_AS 0
 #define DB_ND 1
 #define DB_NT 2
@@ -27,11 +26,11 @@ int locdb_open(char* fn){
     unsigned char magic[8];
     unsigned char header[64];
     FILE* f=fopen(fn,"r");
-    if(fread(magic,sizeof(magic),1,f)<1) return 0;
+    if(fread(magic,sizeof(magic),1,f)<1) return 0; // read error
     // Magic: 4C4F4344  42585801
     // printf("Magic: %08X  %08X\n",getint(magic),getint(magic+4));
     if(getint(magic)!=0x4C4F4344 || getint(magic+4)!=0x42585801) return 0; // bad format
-    if(fread(header,sizeof(header),1,f)<1) return 0;
+    if(fread(header,sizeof(header),1,f)<1) return 0; // read error
     int i;
     for(i=0;i<5;i++){
         unsigned int off=getint(header+20+i*8);
@@ -59,9 +58,9 @@ int locdb_open(char* fn){
     return 1; // OK
 }
 
-int locdb_lookup(unsigned char* address, int addrlen, int nxt){
+// address -> net
+int locdb_lookup(unsigned char* address, int addrlen, unsigned int nxt){
     int ret=-1;
-//    int mask;
     for(int mask=0;mask<8*addrlen;mask+=1){
         if(nxt*12>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
         int bit=(address[mask>>3] >> (7-(mask&7)) )&1;
@@ -73,20 +72,35 @@ int locdb_lookup(unsigned char* address, int addrlen, int nxt){
     return ret;
 }
 
+// net -> asn (+cc)
 unsigned int locdb_get_asn(unsigned int net,unsigned char* cc){
     if(net*12>=locdb_len[DB_ND]) return 0;
     if(cc) memcpy(cc,locdb_data[DB_ND]+net*12,2);
     return getint(locdb_data[DB_ND]+net*12+4);
 }
 
+// asn -> org
 unsigned char* locdb_get_org(unsigned int asn){
     int p1=0;
     int p2=locdb_len[DB_AS]/8;
-    while(p1<p2){ // binary search
-        int pos=(p1+p2)/2;
+    while(p1<p2){
+        int pos=(p1+p2)/2;   // binary search
         unsigned int x=getint(locdb_data[DB_AS]+pos*8);
         if(asn==x) return getstr(getint(locdb_data[DB_AS]+pos*8+4)); // found!
         if(asn<x) p2=pos; else p1=pos+1;
+    }
+    return NULL;
+}
+
+// cc -> country (+co[ntinent])
+unsigned char* locdb_get_country(unsigned char* cc,unsigned char* co){
+    unsigned char* p=locdb_data[DB_CO];
+    unsigned char* pend=p+locdb_len[DB_CO];
+    for(;p<pend;p+=8){
+        if(p[0]==cc[0] && p[1]==cc[1]){ // found!
+            if(co) memcpy(co,p+2,2);
+            return getstr(getint(p+4));
+        }
     }
     return NULL;
 }
@@ -97,9 +111,11 @@ int main(){
     //unsigned char addr[]={0x2a,1,0x6e,0xe0, 0,1, 2,1,   0,0,0,0,0xB,0xAD,0xC0,0xDE};
     int ret=locdb_lookup(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
     unsigned char cc[3]={0,0,0};
+    unsigned char co[3]={0,0,0};
     int asn=locdb_get_asn(ret,cc);
+    unsigned char* country=locdb_get_country(cc,co);
     unsigned char* org=locdb_get_org(asn);
-    printf("Result: net=%d  asn=%d  CC='%s'  ORG='%s'\n",ret,asn,cc,org);
+    printf("Result: net=%d  asn=%d  CC=%s/%s '%s'  ORG='%s'\n",ret,asn,cc,co,country,org);
 
 }
 
