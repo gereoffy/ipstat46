@@ -115,7 +115,7 @@ int locdb_lookup(const char* buffer){
         int c=*p++;
         if(!c && len==3) return locdb_lookup4(address4); // end of strings and we have 3 dots in it
         if(c=='.'){ if(++len>=4) break; } // max 3 dots! :)
-        else if('0'<=c && c<='9') address4[len]=address4[len]*10 + (c-'0');
+        else if('0'<=c && c<='9'){ int x=(int)(address4[len])*10 + (c-'0'); if(x>255) break; address4[len]=x; }
         else break; // only dot & numbers are allowed here
     }
 #else
@@ -175,7 +175,7 @@ int main(){
     //unsigned char addr[]={0x2a,1,0x6e,0xe0, 0,1, 2,1,   0,0,0,0,0xB,0xAD,0xC0,0xDE};
     //int ret=locdb_lookup6(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
 //    int ret=locdb_lookup("2a01:6ee0:1:201::bad:c0de");
-    int ret=locdb_lookup("193.224.41.5");
+    int ret=locdb_lookup("193.254.41.5");
 //    int ret=locdb_lookup("1.1.1.1");
     unsigned char cc[3]={0,0,0};
     unsigned char co[3]={0,0,0};
