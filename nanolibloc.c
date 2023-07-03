@@ -91,7 +91,7 @@ int locdb_lookup6(unsigned char* address, int addrlen, unsigned int nxt){
 int locdb_lookup4(unsigned char* ap){
     unsigned int address=(ap[0]<<24)|(ap[1]<<16)|(ap[2]<<8)|ap[3];
     int ret=-1;
-    int nxt=ipv4root;
+    unsigned int nxt=ipv4root;
     for(int mask=0;mask<32;mask++){
         nxt*=12;
         if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
@@ -106,12 +106,24 @@ int locdb_lookup4(unsigned char* ap){
 }
 
 int locdb_lookup(const char* buffer){
-    struct in6_addr address6;
+#if 1
+    // quick & dirty ipv4 string parser :)
+    unsigned char address4[4]={0,0,0,0};
+    int len=0;
+    const char* p=buffer;
+    while(1){
+        int c=*p++;
+        if(!c && len==3) return locdb_lookup4(address4); // end of strings and we have 3 dots in it
+        if(c=='.'){ if(++len>=4) break; } // max 3 dots! :)
+        else if('0'<=c && c<='9') address4[len]=address4[len]*10 + (c-'0');
+        else break; // only dot & numbers are allowed here
+    }
+#else
     struct in_addr address4;
-    if(inet_pton(AF_INET6, buffer, &address6)==1) return locdb_lookup6(address6.s6_addr,16,0);
-//    if(inet_pton(AF_INET, buffer, &address4)==1) return locdb_lookup6((unsigned char *)(&address4.s_addr),4,ipv4root);
     if(inet_pton(AF_INET, buffer, &address4)==1) return locdb_lookup4((unsigned char *)(&address4.s_addr));
-//    if(inet_pton(AF_INET, buffer, &address4)==1) return locdb_lookup4(address4.s_addr);
+#endif
+    struct in6_addr address6;
+    if(inet_pton(AF_INET6, buffer, &address6)==1) return locdb_lookup6(address6.s6_addr,16,0);
     return -1;
 }
 
@@ -164,6 +176,7 @@ int main(){
     //int ret=locdb_lookup6(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
 //    int ret=locdb_lookup("2a01:6ee0:1:201::bad:c0de");
     int ret=locdb_lookup("193.224.41.5");
+//    int ret=locdb_lookup("1.1.1.1");
     unsigned char cc[3]={0,0,0};
     unsigned char co[3]={0,0,0};
     int asn=locdb_get_asn(ret,cc);
