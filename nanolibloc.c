@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <arpa/inet.h>
+
 #define DB_AS 0
 #define DB_ND 1
 #define DB_NT 2
@@ -59,9 +61,9 @@ int locdb_open(char* fn){
 }
 
 // address -> net
-int locdb_lookup(unsigned char* address, int addrlen, unsigned int nxt){
+int locdb_lookup6(unsigned char* address, int addrlen, unsigned int nxt){
     int ret=-1;
-    for(int mask=0;mask<8*addrlen;mask+=1){
+    for(int mask=0;mask<8*addrlen;mask++){
         if(nxt*12>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
         int bit=(address[mask>>3] >> (7-(mask&7)) )&1;
         nxt=getint( locdb_data[DB_NT] + 12*nxt + bit*4 );
@@ -70,6 +72,34 @@ int locdb_lookup(unsigned char* address, int addrlen, unsigned int nxt){
         if(!nxt) break;
     }
     return ret;
+}
+
+int locdb_lookup4(unsigned char* ap){
+    unsigned int address=(ap[0]<<24)|(ap[1]<<16)|(ap[2]<<8)|ap[3];
+    int ret=-1;
+    int nxt=ipv4root;
+    for(int mask=0;mask<32;mask++){
+        nxt*=12;
+        if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
+        int bit=(address>>29)&4; //  == 4*((address>>31)&1)
+//        printf("bit#%d: %d   nxt=%d\n",mask,bit,nxt);
+        unsigned int net=getint( locdb_data[DB_NT] + nxt + 8 );
+        if(!(net&0x80000000)) ret=net;
+        nxt=getint( locdb_data[DB_NT] + nxt + bit );
+        if(!nxt) break;
+        address<<=1;
+    }
+    return ret;
+}
+
+int locdb_lookup(const char* buffer){
+    struct in6_addr address6;
+    struct in_addr address4;
+    if(inet_pton(AF_INET6, buffer, &address6)==1) return locdb_lookup6(address6.s6_addr,16,0);
+//    if(inet_pton(AF_INET, buffer, &address4)==1) return locdb_lookup6((unsigned char *)(&address4.s_addr),4,ipv4root);
+    if(inet_pton(AF_INET, buffer, &address4)==1) return locdb_lookup4((unsigned char *)(&address4.s_addr));
+//    if(inet_pton(AF_INET, buffer, &address4)==1) return locdb_lookup4(address4.s_addr);
+    return -1;
 }
 
 // net -> asn (+cc)
@@ -107,9 +137,11 @@ unsigned char* locdb_get_country(unsigned char* cc,unsigned char* co){
 
 int main(){
     locdb_open("/var/lib/location/database.db");
-    unsigned char addr[]={193,224,41,5};
+//    unsigned char addr[]={193,224,41,5};
     //unsigned char addr[]={0x2a,1,0x6e,0xe0, 0,1, 2,1,   0,0,0,0,0xB,0xAD,0xC0,0xDE};
-    int ret=locdb_lookup(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
+    //int ret=locdb_lookup6(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
+//    int ret=locdb_lookup("2a01:6ee0:1:201::bad:c0de");
+    int ret=locdb_lookup("193.224.41.5");
     unsigned char cc[3]={0,0,0};
     unsigned char co[3]={0,0,0};
     int asn=locdb_get_asn(ret,cc);
