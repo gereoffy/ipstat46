@@ -77,11 +77,12 @@ int locdb_open(char* fn){
 int locdb_lookup6(unsigned char* address, int addrlen, unsigned int nxt){
     int ret=-1;
     for(int mask=0;mask<8*addrlen;mask++){
-        if(nxt*12>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
-        int bit=(address[mask>>3] >> (7-(mask&7)) )&1;
-        nxt=getint( locdb_data[DB_NT] + 12*nxt + bit*4 );
-        unsigned int net=getint( locdb_data[DB_NT] + 12*nxt + 8 );
+        nxt*=12;
+        if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
+        unsigned int net=getint( locdb_data[DB_NT] + nxt + 8 );
         if(!(net&0x80000000)) ret=net;
+        int bit=(address[mask>>3] >> (7-(mask&7)) )&1;
+        nxt=getint( locdb_data[DB_NT] + nxt + bit*4 );
         if(!nxt) break;
     }
     return ret;
@@ -94,10 +95,9 @@ int locdb_lookup4(unsigned char* ap){
     for(int mask=0;mask<32;mask++){
         nxt*=12;
         if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
-        int bit=(address>>29)&4; //  == 4*((address>>31)&1)
-//        printf("bit#%d: %d   nxt=%d\n",mask,bit,nxt);
         unsigned int net=getint( locdb_data[DB_NT] + nxt + 8 );
         if(!(net&0x80000000)) ret=net;
+        int bit=(address>>29)&4; //  == 4*((address>>31)&1)
         nxt=getint( locdb_data[DB_NT] + nxt + bit );
         if(!nxt) break;
         address<<=1;
