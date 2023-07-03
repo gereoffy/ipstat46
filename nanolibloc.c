@@ -15,7 +15,7 @@ static unsigned char* locdb_data[5];
 static unsigned int locdb_len[5];
 static unsigned int ipv4root=0;
 
-static unsigned short cc_map[128*128]; // 32kByte
+static unsigned short cc_map[32*32]; // 10bit key, 2kbyte memory usage
 
 static inline unsigned int getint(unsigned char* p){
     return (p[0]<<24) | (p[1]<<16) | (p[2]<<8) | p[3];
@@ -65,7 +65,11 @@ int locdb_open(char* fn){
     i=0;
     unsigned char* p=locdb_data[DB_CO];
     unsigned char* pend=p+locdb_len[DB_CO];
-    for(;p<pend;p+=8) cc_map[p[0]|(p[1]<<7)]=i++;
+    for(;p<pend;p+=8){
+        int key=p[0]^((p[1]&31)<<5); // 10 bit
+        if(cc_map[key]!=0xFFFF) printf("cc cache key collision: %d\n",i);
+        cc_map[key]=i++;
+    }
     return 1; // OK
 }
 
@@ -134,7 +138,8 @@ unsigned char* locdb_get_org(unsigned int asn){
 // cc -> country (+co[ntinent])
 unsigned char* locdb_get_country(unsigned char* cc,unsigned char* co){
 #if 1
-    int x=8*cc_map[cc[0]|(cc[1]<<7)];
+    int key=cc[0]^((cc[1]&31)<<5); // 10 bit
+    int x=8*cc_map[key];
     if(x<locdb_len[DB_CO]){
         if(co) memcpy(co,locdb_data[DB_CO]+x+2,2);
         return getstr(getint(locdb_data[DB_CO]+x+4));
