@@ -76,15 +76,16 @@ int locdb_open(char* fn){
 // address -> net
 int locdb_lookup6(unsigned char* address, int addrlen, unsigned int nxt){
     int ret=-1;
-    for(int mask=0;mask<=8*addrlen;mask++){
-        nxt*=12;
+    int mask=0;
+    do{ nxt*=12;
         if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
         unsigned int net=getint( locdb_data[DB_NT] + nxt + 8 );
         if(!(net&0x80000000)) ret=net;
+        if(mask>>3>=addrlen) break; // no more bits available
         int bit=(address[mask>>3] >> (7-(mask&7)) )&1;
+        mask++;
         nxt=getint( locdb_data[DB_NT] + nxt + bit*4 );
-        if(!nxt) break;
-    }
+    } while(nxt);
     return ret;
 }
 
@@ -170,13 +171,13 @@ unsigned char* locdb_get_country(unsigned char* cc,unsigned char* co){
 }
 
 int main(int argc,char* argv[]){
-    locdb_open("/var/lib/location/database.db");
+    locdb_open("/var/lib/location/database.db.JO");
 //    unsigned char addr[]={193,224,41,5};
     //unsigned char addr[]={0x2a,1,0x6e,0xe0, 0,1, 2,1,   0,0,0,0,0xB,0xAD,0xC0,0xDE};
     //int ret=locdb_lookup6(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
-//    int ret=locdb_lookup("2a01:6ee0:1:201::bad:c0de");
+    int ret=locdb_lookup("2a01:6ee0:1:201::bad:c0de");
 //    int ret=locdb_lookup("193.224.41.5");
-    int ret=locdb_lookup((argc>1)?argv[1]:"66.66.66.66");
+//    int ret=locdb_lookup((argc>1)?argv[1]:"66.66.66.66");
     unsigned char cc[3]={0,0,0};
     unsigned char co[3]={0,0,0};
     int asn=locdb_get_asn(ret,cc);
