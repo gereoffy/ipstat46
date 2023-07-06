@@ -76,7 +76,7 @@ int locdb_open(char* fn){
 // address -> net
 int locdb_lookup6(unsigned char* address, int addrlen, unsigned int nxt){
     int ret=-1;
-    for(int mask=0;mask<8*addrlen;mask++){
+    for(int mask=0;mask<=8*addrlen;mask++){
         nxt*=12;
         if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
         unsigned int net=getint( locdb_data[DB_NT] + nxt + 8 );
@@ -92,7 +92,7 @@ int locdb_lookup4(unsigned char* ap){
     unsigned int address=(ap[0]<<24)|(ap[1]<<16)|(ap[2]<<8)|ap[3];
     int ret=-1;
     unsigned int nxt=ipv4root;
-    for(int mask=0;mask<32;mask++){
+    for(int mask=0;mask<=32;mask++){
         nxt*=12;
         if(nxt>=locdb_len[DB_NT]) return -1; // out of bounds indexing...
         unsigned int net=getint( locdb_data[DB_NT] + nxt + 8 );
@@ -169,20 +169,35 @@ unsigned char* locdb_get_country(unsigned char* cc,unsigned char* co){
     return NULL;
 }
 
-int main(){
+int main(int argc,char* argv[]){
     locdb_open("/var/lib/location/database.db");
 //    unsigned char addr[]={193,224,41,5};
     //unsigned char addr[]={0x2a,1,0x6e,0xe0, 0,1, 2,1,   0,0,0,0,0xB,0xAD,0xC0,0xDE};
     //int ret=locdb_lookup6(addr,sizeof(addr),(sizeof(addr)<=4 ? ipv4root : 0));
 //    int ret=locdb_lookup("2a01:6ee0:1:201::bad:c0de");
-    int ret=locdb_lookup("193.254.41.5");
-//    int ret=locdb_lookup("1.1.1.1");
+//    int ret=locdb_lookup("193.224.41.5");
+    int ret=locdb_lookup((argc>1)?argv[1]:"66.66.66.66");
     unsigned char cc[3]={0,0,0};
     unsigned char co[3]={0,0,0};
     int asn=locdb_get_asn(ret,cc);
     unsigned char* country=locdb_get_country(cc,co);
     unsigned char* org=locdb_get_org(asn);
     printf("Result: net=%d  asn=%d  CC=%s/%s '%s'  ORG='%s'\n",ret,asn,cc,co,country,org);
+
+#if 0
+    // benchmark!
+    srand(1978);
+    char buffer[1024];
+    for(int i=0;i<10000000;i++){
+        unsigned int x=(rand()<<2)&0xFFFFFFFF;
+        sprintf(buffer,"%d.%d.%d.%d",(x>>24)&255,(x>>16)&255,(x>>8)&255,x&255);
+        int ret=locdb_lookup(buffer);
+        int asn=locdb_get_asn(ret,cc);
+        unsigned char* country=locdb_get_country(cc,co);
+        unsigned char* org=locdb_get_org(asn);
+        if(i<25) printf("%s:  net=%d  asn=%d  CC=%s/%s '%s'  ORG='%s'\n",buffer,ret,asn,cc,co,country,org);
+    }
+#endif
 
 }
 
